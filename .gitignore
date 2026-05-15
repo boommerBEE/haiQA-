@@ -1,0 +1,49 @@
+HELP.md
+target/
+.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+### STS ###
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+
+### IntelliJ IDEA ###
+.idea
+*.iws
+*.iml
+*.ipr
+
+### NetBeans ###
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+build/
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+### VS Code ###
+.vscode/
+
+### Project specific ###
+# Chroma 本地持久化数据（可被 chroma_data 目录污染）
+chroma_data/
+../chroma_data/
+
+# 环境变量文件，避免泄露 API key
+.env
+*.env
+
+# 日志
+*.log
+logs/
+
+# 用户测试数据（按需保留）
+# test.txt

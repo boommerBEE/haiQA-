@@ -1,0 +1,21 @@
+spring:
+  application:
+    name: haipart-qa
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+
+# AI 相关配置
+ai:
+  deepseek:
+    # 通过环境变量注入，请勿将真实密钥提交到版本库；IDE 运行时在 Run Configuration 里配置 DEEPSEEK_API_KEY
+    api-key: ${DEEPSEEK_API_KEY:}
+    base-url: "https://api.deepseek.com/v1"
+    model-name: "deepseek-chat"
+  ollama:
+    base-url: "http://localhost:11434"
+    model-name: "nomic-embed-text"
+  chroma:
+    base-url: "http://localhost:8000"
+    collection-name: "haipart_knowledge"

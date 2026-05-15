@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HaiPart 知识库助手</title>
+
+    <!-- marked.js: 把 markdown 文本转成 HTML，用于渲染 AI 回答 -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+    <style>
+        /* ============ 1) 设计令牌（颜色/间距/字体）============ */
+        :root {
+            --bg: #f5f6f8;
+            --panel: #ffffff;
+            --border: #d8dde3;
+            --border-strong: #b9c1cb;
+            --text: #1f2933;
+            --text-mute: #6b7280;
+            --accent: #2c5282;        /* 工业蓝（沉稳）*/
+            --accent-hover: #1e3a5f;
+            --success: #2f855a;
+            --danger: #c53030;
+            --warn-bg: #fffbea;
+            --code-bg: #f1f3f5;
+            --radius: 4px;            /* 偏方正，工业感 */
+            --shadow-sm: 0 1px 2px rgba(0,0,0,.04);
+        }
+
+        * { box-sizing: border-box; }
+
+        html, body {
+            margin: 0;
+            padding: 0;
+            background: var(--bg);
+            color: var(--text);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", Arial, sans-serif;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        /* ============ 2) 顶部 Header ============ */
+        header {
+            background: var(--text);
+            color: #fff;
+            padding: 14px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 3px solid var(--accent);
+        }
+        header .brand { font-weight: 600; letter-spacing: 1px; }
+        header .brand::before {
+            content: "▎";
+            color: var(--accent);
+            margin-right: 4px;
+        }
+        header .meta { font-size: 12px; color: #9ca3af; font-family: "Courier New", monospace; }
+
+        /* ============ 3) 主体布局 ============ */
+        main {
+            max-width: 960px;
+            margin: 24px auto;
+            padding: 0 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .panel {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow-sm);
+        }
+        .panel-title {
+            padding: 10px 16px;
+            border-bottom: 1px solid var(--border);
+            font-weight: 600;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-mute);
+            background: #fafbfc;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .panel-title::before {
+            content: "";
+            display: inline-block;
+            width: 6px;
+            height: 6px;
+            background: var(--accent);
+        }
+        .panel-body { padding: 16px; }
+
+        /* ============ 4) 上传区 ============ */
+        .upload-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        input[type="file"] {
+            flex: 1;
+            min-width: 200px;
+            padding: 8px;
+            border: 1px dashed var(--border-strong);
+            background: #fafbfc;
+            border-radius: var(--radius);
+            font-family: inherit;
+            font-size: 13px;
+            cursor: pointer;
+        }
+        input[type="file"]:hover { border-color: var(--accent); }
+
+        /* ============ 5) 按钮 ============ */
+        button {
+            padding: 9px 18px;
+            background: var(--accent);
+            color: #fff;
+            border: none;
+            border-radius: var(--radius);
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            letter-spacing: .5px;
+            transition: background .15s;
+        }
+        button:hover:not(:disabled) { background: var(--accent-hover); }
+        button:disabled {
+            background: #a0aec0;
+            cursor: not-allowed;
+            opacity: .8;
+        }
+        button.secondary {
+            background: #fff;
+            color: var(--text);
+            border: 1px solid var(--border-strong);
+        }
+        button.secondary:hover:not(:disabled) {
+            background: #f5f7fa;
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        /* ============ 6) 状态条 ============ */
+        .status {
+            margin-top: 10px;
+            padding: 8px 12px;
+            font-size: 13px;
+            border-radius: var(--radius);
+            display: none;
+        }
+        .status.show { display: block; }
+        .status.ok    { background: #f0fff4; color: var(--success); border-left: 3px solid var(--success); }
+        .status.err   { background: #fff5f5; color: var(--danger);  border-left: 3px solid var(--danger); }
+        .status.info  { background: var(--warn-bg); color: #744210; border-left: 3px solid #d69e2e; }
+
+        /* ============ 7) 聊天输入 ============ */
+        textarea {
+            width: 100%;
+            min-height: 80px;
+            padding: 10px 12px;
+            border: 1px solid var(--border-strong);
+            border-radius: var(--radius);
+            font-family: inherit;
+            font-size: 14px;
+            resize: vertical;
+            outline: none;
+            transition: border-color .15s;
+        }
+        textarea:focus { border-color: var(--accent); }
+        .chat-bar {
+            margin-top: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 8px;
+        }
+        .chat-bar .hint { font-size: 12px; color: var(--text-mute); }
+
+        /* ============ 8) 对话区 ============ */
+        #conversation {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        .msg {
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            background: #fff;
+            overflow: hidden;
+        }
+        .msg-head {
+            padding: 8px 14px;
+            background: #fafbfc;
+            border-bottom: 1px solid var(--border);
+            font-size: 12px;
+            color: var(--text-mute);
+            display: flex;
+            justify-content: space-between;
+        }
+        .msg-head .role { font-weight: 600; letter-spacing: 1px; }
+        .msg.user .msg-head .role { color: var(--accent); }
+        .msg.ai   .msg-head .role { color: var(--success); }
+        .msg-body { padding: 14px 16px; }
+
+        /* markdown 内容样式 */
+        .answer-md p:first-child { margin-top: 0; }
+        .answer-md p:last-child  { margin-bottom: 0; }
+        .answer-md code {
+            background: var(--code-bg);
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-family: "Courier New", Consolas, monospace;
+            font-size: 13px;
+        }
+        .answer-md pre {
+            background: var(--code-bg);
+            padding: 10px;
+            overflow-x: auto;
+            border-radius: var(--radius);
+        }
+        .answer-md pre code { background: none; padding: 0; }
+        .answer-md ul, .answer-md ol { padding-left: 22px; }
+
+        /* ============ 9) Sources 引用区 ============ */
+        .sources {
+            margin-top: 14px;
+            padding-top: 12px;
+            border-top: 1px dashed var(--border);
+        }
+        .sources-title {
+            font-size: 12px;
+            color: var(--text-mute);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+        }
+        .source-card {
+            border: 1px solid var(--border);
+            border-left: 3px solid var(--accent);
+            background: #fafbfc;
+            padding: 10px 12px;
+            margin-bottom: 8px;
+            border-radius: var(--radius);
+            font-size: 13px;
+        }
+        .source-card:last-child { margin-bottom: 0; }
+        .source-meta {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            color: var(--text-mute);
+            margin-bottom: 6px;
+            font-family: "Courier New", monospace;
+        }
+        .source-content {
+            color: var(--text);
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        .score-bar {
+            display: inline-block;
+            width: 60px;
+            height: 6px;
+            background: #e2e8f0;
+            border-radius: 2px;
+            overflow: hidden;
+            vertical-align: middle;
+            margin-left: 6px;
+        }
+        .score-bar > span {
+            display: block;
+            height: 100%;
+            background: var(--accent);
+        }
+
+        /* ============ 10) Loading 占位 ============ */
+        .thinking {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: var(--text-mute);
+            font-style: italic;
+        }
+        .spinner {
+            width: 14px;
+            height: 14px;
+            border: 2px solid #e2e8f0;
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin .8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .empty {
+            color: var(--text-mute);
+            text-align: center;
+            padding: 30px 16px;
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="brand">HAIPART · 工业零部件知识库</div>
+    <div class="meta">RAG · LangChain4j · DeepSeek</div>
+</header>
+
+<main>
+
+    <!-- ============ 上传区 ============ -->
+    <section class="panel">
+        <div class="panel-title">文档上传</div>
+        <div class="panel-body">
+            <div class="upload-row">
+                <input type="file" id="fileInput" accept=".txt,.pdf">
+                <button id="uploadBtn" type="button">上传到知识库</button>
+            </div>
+            <div id="uploadStatus" class="status"></div>
+        </div>
+    </section>
+
+    <!-- ============ 聊天输入区 ============ -->
+    <section class="panel">
+        <div class="panel-title">提问</div>
+        <div class="panel-body">
+            <textarea id="questionInput"
+                      placeholder="例如：哪个零件适合高温环境？"
+                      rows="3"></textarea>
+            <div class="chat-bar">
+                <span class="hint">Ctrl + Enter 快速发送</span>
+                <div>
+                    <button id="clearBtn" class="secondary" type="button">清空对话</button>
+                    <button id="sendBtn" type="button">发送</button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============ 对话区 ============ -->
+    <section class="panel">
+        <div class="panel-title">对话记录</div>
+        <div class="panel-body">
+            <div id="conversation">
+                <div class="empty" id="emptyHint">尚无对话，先上传文档再开始提问</div>
+            </div>
+        </div>
+    </section>
+
+</main>
+
+<script>
+    // ============================================================
+    //  全局配置
+    // ============================================================
+    const API = {
+        upload: '/document/upload',
+        chat:   '/chat'
+    };
+
+    // ============================================================
+    //  通用工具
+    // ============================================================
+    const $ = (id) => document.getElementById(id);
+
+    /** 显示状态条（type: ok | err | info） */
+    function showStatus(el, type, text) {
+        el.className = `status show ${type}`;
+        el.textContent = text;
+    }
+    function hideStatus(el) {
+        el.className = 'status';
+        el.textContent = '';
+    }
+
+    /** 简单的 HTML 转义，防 XSS */
+    function escapeHtml(str) {
+        return String(str ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    // ============================================================
+    //  上传逻辑
+    // ============================================================
+    const uploadBtn    = $('uploadBtn');
+    const fileInput    = $('fileInput');
+    const uploadStatus = $('uploadStatus');
+
+    uploadBtn.addEventListener('click', async () => {
+        const file = fileInput.files[0];
+        if (!file) {
+            showStatus(uploadStatus, 'info', '请先选择一个 txt 或 pdf 文件');
+            return;
+        }
+
+        // 进入上传中：禁用按钮 + 提示
+        uploadBtn.disabled = true;
+        const originalLabel = uploadBtn.textContent;
+        uploadBtn.textContent = '上传中…';
+        showStatus(uploadStatus, 'info', `正在上传并向量化：${file.name}`);
+
+        try {
+            const fd = new FormData();
+            fd.append('file', file);
+
+            const resp = await fetch(API.upload, { method: 'POST', body: fd });
+            // 后端返回的是纯文本字符串
+            const text = await resp.text();
+            if (!resp.ok) throw new Error(text || `HTTP ${resp.status}`);
+
+            showStatus(uploadStatus, 'ok', `✓ ${text}`);
+        } catch (err) {
+            console.error(err);
+            showStatus(uploadStatus, 'err', `上传失败：${err.message}`);
+        } finally {
+            // 恢复按钮（无论成功失败都要恢复，否则用户会被困住）
+            uploadBtn.disabled = false;
+            uploadBtn.textContent = originalLabel;
+        }
+    });
+
+    // ============================================================
+    //  聊天逻辑
+    // ============================================================
+    const sendBtn       = $('sendBtn');
+    const clearBtn      = $('clearBtn');
+    const questionInput = $('questionInput');
+    const conversation  = $('conversation');
+    const emptyHint     = $('emptyHint');
+
+    /** 在对话区追加一条用户问题 */
+    function appendUserMessage(question) {
+        emptyHint.style.display = 'none';
+        const wrap = document.createElement('div');
+        wrap.className = 'msg user';
+        wrap.innerHTML = `
+            <div class="msg-head">
+                <span class="role">YOU</span>
+                <span>${new Date().toLocaleTimeString()}</span>
+            </div>
+            <div class="msg-body">${escapeHtml(question)}</div>
+        `;
+        conversation.appendChild(wrap);
+        scrollToBottom();
+        return wrap;
+    }
+
+    /** 在对话区追加一条 AI 回答占位（先显示思考中，拿到结果后再填充） */
+    function appendAiPlaceholder() {
+        const wrap = document.createElement('div');
+        wrap.className = 'msg ai';
+        wrap.innerHTML = `
+            <div class="msg-head">
+                <span class="role">AI</span>
+                <span class="ts">${new Date().toLocaleTimeString()}</span>
+            </div>
+            <div class="msg-body">
+                <div class="thinking">
+                    <div class="spinner"></div>
+                    <span>AI 正在思考中…</span>
+                </div>
+            </div>
+        `;
+        conversation.appendChild(wrap);
+        scrollToBottom();
+        return wrap;
+    }
+
+    /** 真正把 AI 回答 + sources 渲染到占位 div 里 */
+    function renderAiAnswer(wrap, data) {
+        const body = wrap.querySelector('.msg-body');
+
+        // 1) AI 回答（markdown → html）
+        const answerHtml = marked.parse(data.answer ?? '');
+        let html = `<div class="answer-md">${answerHtml}</div>`;
+
+        // 2) Sources 区
+        if (Array.isArray(data.sources) && data.sources.length > 0) {
+            html += `<div class="sources">`;
+            html += `<div class="sources-title">📎 引用来源（${data.sources.length}）</div>`;
+            data.sources.forEach((s, i) => {
+                html += renderSourceCard(s, i + 1);
+            });
+            html += `</div>`;
+        }
+
+        body.innerHTML = html;
+    }
+
+    /**
+     * 渲染单条引用。兼容两种数据形态：
+     *  - 字符串： "零件A最高耐受温度800℃"
+     *  - 对象  ： { fileName, content, score }
+     */
+    function renderSourceCard(s, idx) {
+        if (typeof s === 'string') {
+            return `
+                <div class="source-card">
+                    <div class="source-meta"><span>[${idx}]</span></div>
+                    <div class="source-content">${escapeHtml(s)}</div>
+                </div>`;
+        }
+        const fileName = s.fileName ?? 'unknown';
+        const content  = s.content ?? '';
+        const score    = typeof s.score === 'number' ? s.score : null;
+
+        const scoreHtml = score !== null
+            ? `<span>score ${score.toFixed(3)}
+                 <span class="score-bar"><span style="width:${Math.min(100, score * 100).toFixed(0)}%"></span></span>
+               </span>`
+            : '';
+
+        return `
+            <div class="source-card">
+                <div class="source-meta">
+                    <span>[${idx}] ${escapeHtml(fileName)}</span>
+                    ${scoreHtml}
+                </div>
+                <div class="source-content">${escapeHtml(content)}</div>
+            </div>`;
+    }
+
+    /** 渲染错误（替换占位） */
+    function renderAiError(wrap, message) {
+        const body = wrap.querySelector('.msg-body');
+        body.innerHTML = `<div class="status err show">请求失败：${escapeHtml(message)}</div>`;
+    }
+
+    function scrollToBottom() {
+        // 让最新消息可见
+        window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+    }
+
+    /** 发送问题主流程 */
+    async function send() {
+        const question = questionInput.value.trim();
+        if (!question) {
+            questionInput.focus();
+            return;
+        }
+
+        // UI：渲染用户问 + AI 占位、禁用按钮
+        appendUserMessage(question);
+        const aiWrap = appendAiPlaceholder();
+
+        sendBtn.disabled = true;
+        const originalLabel = sendBtn.textContent;
+        sendBtn.textContent = '发送中…';
+        questionInput.value = '';
+
+        try {
+            const resp = await fetch(API.chat, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ question })
+            });
+
+            const text = await resp.text();
+            if (!resp.ok) {
+                // 后端 ApiExceptionHandler 会返回 JSON {status,error}，try parse
+                let msg = text;
+                try { msg = JSON.parse(text).error ?? text; } catch (_) {}
+                throw new Error(msg || `HTTP ${resp.status}`);
+            }
+
+            const data = JSON.parse(text);
+            renderAiAnswer(aiWrap, data);
+        } catch (err) {
+            console.error(err);
+            renderAiError(aiWrap, err.message);
+        } finally {
+            sendBtn.disabled = false;
+            sendBtn.textContent = originalLabel;
+            questionInput.focus();
+        }
+    }
+
+    sendBtn.addEventListener('click', send);
+
+    // Ctrl + Enter 快捷发送
+    questionInput.addEventListener('keydown', (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+            e.preventDefault();
+            send();
+        }
+    });
+
+    // 清空对话（只清前端 UI；后端 ChatMemory 仍保留，重启 Spring Boot 才会清）
+    clearBtn.addEventListener('click', () => {
+        conversation.innerHTML = '';
+        conversation.appendChild(emptyHint);
+        emptyHint.style.display = 'block';
+    });
+
+</script>
+
+</body>
+</html>

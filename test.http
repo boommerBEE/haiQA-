@@ -1,0 +1,27 @@
+### 上传文档
+POST http://localhost:8080/document/upload
+Content-Type: multipart/form-data; boundary=WebAppBoundary
+
+--WebAppBoundary
+Content-Disposition: form-data; name="file"; filename="test.txt"
+Content-Type: text/plain
+
+< ./test.txt
+--WebAppBoundary--
+
+
+### RAG聊天
+POST http://localhost:8080/chat
+Content-Type: application/json
+
+{
+  "question":"最耐高温的零件是什么"
+}
+
+### RAG聊天2
+POST http://localhost:8080/chat
+Content-Type: application/json
+
+{
+"question": "它价格怎么样？"
+}
