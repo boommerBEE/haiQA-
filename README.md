@@ -1,4 +1,4 @@
-# haiz-demo01 — RAG 知识库问答 Demo
+# haiQA — RAG 知识库问答 Demo
 
 基于 Spring Boot 4 + LangChain4j + Ollama + ChromaDB + DeepSeek 的最小可运行 RAG 系统。
 
